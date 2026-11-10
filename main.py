@@ -1,27 +1,45 @@
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
-from schemas import TextRequest, TranslationResponse
-from service import Translator
+from pydantic import BaseModel, Field, field_validator
+import re
+import torch
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
+app = FastAPI()
+tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-fr")
+modelo = AutoModelForSeq2SeqLM.from_pretrained("Helsinki-NLP/opus-mt-en-fr")
+modelo.eval()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    translator = Translator("Helsinki-NLP/opus-mt-en-fr")
-    app.state.translate = translator.translate
-    yield
+class Entrada(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
 
-app = FastAPI(title="parte1_q2_traducao_fr", lifespan=lifespan)
+    @field_validator("text")
+    @classmethod
+    def validar_texto(cls, texto):
+        if not texto.strip():
+            raise ValueError("Informe um texto.")
+        return texto
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+def traduzir_texto(texto):
+    frases = re.split(r"(?<=[.!?])\s+|\n+", texto.strip())
+    blocos = []
+    for frase in frases:
+        tokens = tokenizer.encode(frase, add_special_tokens=False)
+        for inicio in range(0, len(tokens), 350):
+            blocos.append(tokens[inicio:inicio + 350])
 
-@app.post("/translate", response_model=TranslationResponse)
-def translate(data: TextRequest):
-    try:
-        result = app.state.translate(data.text)
-        return {"translation": result, "target_language": "fr"}
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(503, "Falha de inferência local.") from exc
+    traducoes = []
+    with torch.inference_mode():
+        for bloco in blocos:
+            dados = tokenizer.prepare_for_model(bloco)
+            dados = {nome: torch.tensor([valor]) for nome, valor in dados.items()}
+            saida = modelo.generate(**dados, max_new_tokens=510)
+            if saida[0, -1].item() != tokenizer.eos_token_id:
+                raise HTTPException(422, "Envie um trecho menor para traduzir.")
+            traducoes.append(tokenizer.decode(saida[0], skip_special_tokens=True))
+    return " ".join(traducoes)
+
+@app.post("/translate")
+def traduzir(entrada: Entrada):
+    traducao = traduzir_texto(entrada.text)
+    return {"translation": traducao}

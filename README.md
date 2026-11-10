@@ -1,53 +1,43 @@
-# Tradução inglês-francês
+# Parte 1 - Questão 2: inglês para francês
 
-DR3 - TP2. Python 3.11 ou 3.12. Execute os comandos dentro desta pasta.
+## Como executar
 
-## Instalação
+Use Python 3.11 ou 3.12. Dentro desta pasta, crie um ambiente e instale as dependências:
 
 ```bash
 python -m venv .venv
-# Linux/macOS:
-source .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
 ```
 
-## Execução
+Ative o ambiente:
 
 ```bash
-uvicorn main:app --host 127.0.0.1 --port 8000
+# Linux ou macOS
+source .venv/bin/activate
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
 ```
 
-Abra http://127.0.0.1:8000/docs para testar pelo Swagger. Pare uma aplicação antes de iniciar outra na mesma porta. O endpoint `/health` confirma que o startup terminou.
+```bash
+python -m pip install -r requirements.txt
+uvicorn main:app --port 8000
+```
+
+Abra http://127.0.0.1:8000/docs, selecione POST /translate, clique em “Try it out” e envie:
+
+```json
+{"text": "The weather is beautiful today."}
+```
+
+Também é possível enviar pelo terminal (no Windows, use curl.exe):
 
 ```bash
 curl -X POST http://127.0.0.1:8000/translate -H "Content-Type: application/json" -d '{"text":"The weather is beautiful today."}'
 ```
 
-No PowerShell, use o Swagger ou `curl.exe`. Entrada inválida retorna 422. Falhas de serviço são documentadas no código. Não há autenticação pública: executar como protótipo local.
+Execute uma aplicação por vez na porta 8000. Textos vazios são recusados com erro 422.
 
-## Testes
+O primeiro início baixa o modelo do Hugging Face e precisa de internet. Depois, os pesos ficam no cache. A execução utiliza CPU.
 
-```bash
-python -m pytest -q
-```
+Textos longos são traduzidos frase por frase. Frases maiores que 350 tokens são divididas em blocos. Isso evita ultrapassar o limite de entrada do modelo, mas pode perder contexto entre blocos.
 
-Os testes de contrato substituem a inferência para validar HTTP sem download nem cobrança. Eles não medem qualidade do modelo. Consulte `VALIDACAO.md` na raiz da entrega para as verificações realmente executadas.
-
-## Modelos locais
-
-O primeiro startup baixa os pesos do Hugging Face e exige internet e espaço em disco. Os próximos usam o cache local. A inferência usa CPU; cada worker duplica a memória do modelo. Comece com um worker. Transformers fica na série 4.x por compatibilidade. Sem chave OpenAI.
-
-Para repetir as versões diretas usadas na validação, instale `requirements-testadas.txt` no lugar de `requirements.txt`. Os pacotes transitivos ainda são resolvidos pelo pip.
-
-## Formato de saída
-
-Exemplo ilustrativo; gerações reais podem variar.
-
-```json
-{
-  "translation": "Le temps est beau aujourd’hui.",
-  "source_language": "en",
-  "target_language": "fr"
-}
-```
+A resposta tem o formato `{"translation": "texto traduzido"}`.

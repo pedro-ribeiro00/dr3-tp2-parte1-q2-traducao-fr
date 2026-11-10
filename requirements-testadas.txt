@@ -1,9 +1,0 @@
-fastapi==0.141.1
-uvicorn==0.52.1
-pydantic==2.13.4
-httpx==0.28.1
-pytest==9.2.0
-transformers==4.57.1
-torch==2.15.0+cpu
-sentencepiece==0.2.3
-sacremoses==0.2.0
